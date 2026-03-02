@@ -97,11 +97,11 @@ export default function Login() {
                     {step === 1 ? (
                         <form onSubmit={handleRequestOtp} className="flex flex-col gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="identifier">Email, Phone, or Username</Label>
+                                <Label htmlFor="identifier">Email or Username</Label>
                                 <Input
                                     id="identifier"
                                     type="text"
-                                    placeholder="e.g. user@example.com or +1234567890"
+                                    placeholder="e.g. user@example.com or johndoe"
                                     value={identifier}
                                     onChange={e => setIdentifier(e.target.value)}
                                     required

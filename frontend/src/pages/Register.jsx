@@ -41,9 +41,9 @@ export default function Register() {
             // Navigate to login page, step 2, with identifier pre-filled
             navigate('/login', {
                 state: {
-                    identifier: formData.phone || formData.email,
+                    identifier: formData.email,
                     step: 2,
-                    message: data.message || 'OTP sent successfully.'
+                    message: data.message || 'OTP sent to your email.'
                 }
             })
         } catch (err) {
@@ -83,7 +83,6 @@ export default function Register() {
                         <div className="space-y-2">
                             <Label htmlFor="phone">Phone Number (Optional)</Label>
                             <Input id="phone" name="phone" type="tel" placeholder="+1234567890" onChange={handleChange} />
-                            <p className="text-xs font-base text-muted-foreground">Used for SMS OTP if provided.</p>
                         </div>
                         <Button type="submit" variant="neutral" className="w-full mt-2" disabled={loading}>
                             {loading ? 'Creating...' : 'Create Account'}

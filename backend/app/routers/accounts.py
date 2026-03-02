@@ -12,7 +12,6 @@ from app.core.config import settings
 from app.core.security import create_access_token, generate_otp, hash_otp, verify_otp
 from app.core.dependencies import get_current_user, get_current_active_user
 from app.core.email_service import send_otp_email
-from app.core.sms_service import send_otp_sms, check_otp_sms
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, Token, OTPRequest, OTPVerify, LoginOTPRequest, LoginOTPVerify
 from app.schemas.profile import ProfileUpdate
@@ -83,26 +82,18 @@ def _check_rate_limit(user: User, db: Session):
     db.flush()
 
 def _send_otp(user: User, method: str, db: Session):
-    """Generates, hashes, stores, and sends an OTP."""
+    """Generates, hashes, stores, and sends an OTP via email."""
     otp = generate_otp()
     otp_hash = hash_otp(otp)
     expire_time = datetime.now(timezone.utc) + timedelta(minutes=settings.OTP_EXPIRY_MINUTES)
-    
-    if method == "phone" and user.phone:
-        user.phone_otp = otp_hash
-        user.otp_expires_at = expire_time
-        user.otp_attempts = 0
-        db.commit()
-        send_otp_sms(user.phone, otp)
-    else:
-        # Fallback entirely to email
-        method = "email"
-        user.email_otp = otp_hash
-        user.otp_expires_at = expire_time
-        user.otp_attempts = 0
-        db.commit()
-        send_otp_email(user.email, otp)
-    return method
+
+    # Always send via email
+    user.email_otp = otp_hash
+    user.otp_expires_at = expire_time
+    user.otp_attempts = 0
+    db.commit()
+    send_otp_email(user.email, otp)
+    return "email"
 
 
 # ─── REGISTRATION ────────────────────────────────────────────────────────────
@@ -128,8 +119,8 @@ def register(user_data: UserCreate, request: Request, db: Session = Depends(get_
     # We flush to get the user ID, but don't commit yet.
     db.flush()
 
-    # Automatically send OTP
-    method = "phone" if user.phone else "email"
+    # Automatically send OTP via email
+    method = "email"
     try:
         actual_method = _send_otp(user, method, db)
         db.commit() # Commit only if OTP succeeded
@@ -166,11 +157,7 @@ def request_login_otp(req: LoginOTPRequest, db: Session = Depends(get_db)):
     _check_login_lockout(user)
     _check_rate_limit(user, db)
 
-    method = "email"
-    if "@" not in req.identifier and user.phone:
-        method = "phone"
-
-    actual_method = _send_otp(user, method, db)
+    actual_method = _send_otp(user, "email", db)
     return {"message": "OTP sent.", "method": actual_method}
 
 
@@ -193,35 +180,7 @@ def verify_login_otp(req: LoginOTPVerify, db: Session = Depends(get_db)):
     if not user.otp_expires_at or user.otp_expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="OTP expired. Request a new one.")
 
-    is_phone = req.identifier == user.phone or req.identifier.startswith("+")
-    
-    if is_phone and user.phone:
-        twilio_result = check_otp_sms(user.phone, req.code)
-        if twilio_result is not None:
-            if not twilio_result:
-                # Handle failed attempt
-                user.login_attempts = (user.login_attempts or 0) + 1
-                if user.login_attempts >= LOGIN_MAX_ATTEMPTS:
-                    user.login_locked_until = datetime.now(timezone.utc) + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)
-                    db.commit()
-                    raise HTTPException(status_code=403, detail=f"Too many failed login attempts. Account locked for {LOGIN_LOCKOUT_MINUTES} minutes.")
-                db.commit()
-                remaining = LOGIN_MAX_ATTEMPTS - user.login_attempts
-                raise HTTPException(status_code=401, detail=f"Invalid OTP. {remaining} attempt(s) remaining.")
-
-            # Twilio Success
-            user.is_phone_verified = True
-            user.phone_otp = None
-            user.login_attempts = 0
-            user.login_locked_until = None
-            db.commit()
-            
-            token = create_access_token(data={"sub": user.username, "role": user.role.value})
-            return {"access_token": token}
-        
-        stored_otp_hash = user.phone_otp
-    else:
-        stored_otp_hash = user.email_otp
+    stored_otp_hash = user.email_otp
 
     if not stored_otp_hash or not verify_otp(req.code, stored_otp_hash):
         user.login_attempts = (user.login_attempts or 0) + 1
@@ -234,12 +193,8 @@ def verify_login_otp(req: LoginOTPVerify, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail=f"Invalid OTP. {remaining} attempt(s) remaining.")
 
     # Success
-    if is_phone:
-        user.is_phone_verified = True
-        user.phone_otp = None
-    else:
-        user.is_email_verified = True
-        user.email_otp = None
+    user.is_email_verified = True
+    user.email_otp = None
         
     user.login_attempts = 0
     user.login_locked_until = None
@@ -290,11 +245,8 @@ def resend_otp(otp_req: OTPRequest, current_user: User = Depends(get_current_use
     _check_otp_lockout(current_user)
     _check_rate_limit(current_user, db)
 
-    if otp_req.method == "phone" and not current_user.phone:
-        raise HTTPException(status_code=400, detail="No phone number on profile.")
-
-    _send_otp(current_user, otp_req.method, db)
-    return {"message": f"OTP sent to your {otp_req.method}. Valid for {settings.OTP_EXPIRY_MINUTES} minutes."}
+    _send_otp(current_user, "email", db)
+    return {"message": f"OTP sent to your email. Valid for {settings.OTP_EXPIRY_MINUTES} minutes."}
 
 
 @router.post("/verify-otp")
@@ -305,29 +257,7 @@ def verify_otp_endpoint(otp_data: OTPVerify, current_user: User = Depends(get_cu
     if not current_user.otp_expires_at or current_user.otp_expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="OTP has expired. Please request a new one.")
 
-    if otp_data.method == "phone":
-        twilio_result = check_otp_sms(current_user.phone, otp_data.code)
-        if twilio_result is not None:
-            if not twilio_result:
-                current_user.otp_attempts = (current_user.otp_attempts or 0) + 1
-                if current_user.otp_attempts >= settings.OTP_MAX_ATTEMPTS:
-                    current_user.otp_locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
-                    db.commit()
-                    raise HTTPException(status_code=403, detail="Too many failed attempts. Account locked for 30 minutes.")
-                db.commit()
-                remaining = settings.OTP_MAX_ATTEMPTS - current_user.otp_attempts
-                raise HTTPException(status_code=400, detail=f"Invalid OTP. {remaining} attempt(s) remaining.")
-            
-            current_user.is_phone_verified = True
-            current_user.phone_otp = None
-            current_user.otp_attempts = 0
-            current_user.otp_locked_until = None
-            db.commit()
-            return {"message": "Phone verified successfully!"}
-        
-        stored_otp_hash = current_user.phone_otp
-    else:
-        stored_otp_hash = current_user.email_otp
+    stored_otp_hash = current_user.email_otp
 
     if not stored_otp_hash or not verify_otp(otp_data.code, stored_otp_hash):
         current_user.otp_attempts = (current_user.otp_attempts or 0) + 1
@@ -339,12 +269,8 @@ def verify_otp_endpoint(otp_data: OTPVerify, current_user: User = Depends(get_cu
         remaining = settings.OTP_MAX_ATTEMPTS - current_user.otp_attempts
         raise HTTPException(status_code=400, detail=f"Invalid OTP. {remaining} attempt(s) remaining.")
 
-    if otp_data.method == "email":
-        current_user.is_email_verified = True
-        current_user.email_otp = None
-    elif otp_data.method == "phone":
-        current_user.is_phone_verified = True
-        current_user.phone_otp = None
+    current_user.is_email_verified = True
+    current_user.email_otp = None
 
     current_user.otp_attempts = 0
     current_user.otp_locked_until = None
