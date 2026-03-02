@@ -1,6 +1,9 @@
-"""Security utilities - password hashing and JWT tokens."""
+"""Security utilities - password hashing, JWT tokens, and OTP."""
 
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from jose import jwt
 from passlib.context import CryptContext
@@ -21,7 +24,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (
@@ -29,3 +32,20 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     )
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+# ─── OTP Utilities ────────────────────────────────────────────────────────────
+
+def generate_otp() -> str:
+    """Generate a cryptographically secure 6-digit OTP."""
+    return f"{secrets.randbelow(900000) + 100000}"
+
+
+def hash_otp(otp: str) -> str:
+    """Hash an OTP for secure storage (SHA-256)."""
+    return hashlib.sha256(otp.encode()).hexdigest()
+
+
+def verify_otp(plain_otp: str, hashed_otp: str) -> bool:
+    """Verify a plaintext OTP against its stored hash."""
+    return hashlib.sha256(plain_otp.encode()).hexdigest() == hashed_otp

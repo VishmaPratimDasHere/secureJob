@@ -1,5 +1,5 @@
 """
-SecureJob Platform - Main Application Entry Point
+SecureAJob Platform - Main Application Entry Point
 Secure Job Search & Professional Networking Platform
 CSE 345/545 - Foundations of Computer Security
 """
@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.routers import accounts, jobs, messaging
+from app.routers import accounts, jobs, messaging, resumes, admin
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -17,7 +17,10 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="Secure Job Search & Professional Networking Platform - CSE 345/545 FCS Project",
+    description="SecureAJob - Secure Job Search & Professional Networking Platform - CSE 345/545 FCS Project",
+    docs_url="/docs" if settings.DOCS_ENABLED else None,
+    redoc_url="/redoc" if settings.DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if settings.DOCS_ENABLED else None,
 )
 
 # CORS middleware
@@ -29,10 +32,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
 app.include_router(accounts.router, prefix="/api")
 app.include_router(jobs.router, prefix="/api")
 app.include_router(messaging.router, prefix="/api")
+app.include_router(resumes.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
 
 
 @app.get("/")
