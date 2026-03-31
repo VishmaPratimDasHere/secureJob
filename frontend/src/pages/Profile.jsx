@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +31,19 @@ export default function Profile() {
                 body: JSON.stringify(formData)
             })
             setStatus(res.ok ? { type: 'success', msg: 'Profile updated!' } : { type: 'error', msg: 'Update failed.' })
+            if (res.ok) {
+                const updated = await fetch('/api/accounts/me', { headers: { Authorization: `Bearer ${token}` } })
+                if (updated.ok) {
+                    const data = await updated.json()
+                    setFormData({
+                        full_name: data.full_name || '',
+                        headline: data.headline || '',
+                        location: data.location || '',
+                        bio: data.bio || '',
+                        phone: data.phone || ''
+                    })
+                }
+            }
         } catch {
             setStatus({ type: 'error', msg: 'Network error.' })
         }
@@ -63,9 +77,11 @@ export default function Profile() {
             const res = await fetch('/api/resumes/download', { headers: { Authorization: `Bearer ${token}` } })
             if (!res.ok) throw new Error()
             const blob = await res.blob()
+            const disposition = res.headers.get('Content-Disposition')
+            const filename = disposition?.match(/filename="(.+)"/)?.[1] || 'resume.pdf'
             const url = window.URL.createObjectURL(blob)
             const a = document.createElement('a')
-            a.href = url; a.download = 'resume'; document.body.appendChild(a); a.click(); a.remove()
+            a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove()
             setResumeStatus({ type: 'success', msg: 'Downloaded!' })
         } catch {
             setResumeStatus({ type: 'error', msg: 'No resume found or download failed.' })
@@ -142,7 +158,7 @@ export default function Profile() {
                                 </Alert>
                             )}
                             <form onSubmit={handleUpload} className="space-y-3">
-                                <Input type="file" ref={fileInputRef} required />
+                                <Input type="file" ref={fileInputRef} accept=".pdf,.doc,.docx" required />
                                 <div className="grid grid-cols-2 gap-3">
                                     <Button type="submit" variant="neutral" className="w-full">Upload</Button>
                                     <Button type="button" variant="default" className="w-full" onClick={handleDownload}>Download</Button>
@@ -178,9 +194,9 @@ export default function Profile() {
                                 </Badge>
                             </div>
                             {(!user?.is_email_verified || !user?.is_phone_verified) && (
-                                <a href="/verify">
+                                <Link to="/verify">
                                     <Button variant="default" className="w-full mt-2" size="sm">Verify Now</Button>
-                                </a>
+                                </Link>
                             )}
                         </CardContent>
                     </Card>

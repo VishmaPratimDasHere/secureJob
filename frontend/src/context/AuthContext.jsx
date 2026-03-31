@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 
 const AuthContext = createContext(null)
 
@@ -6,28 +6,36 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null)
     const [token, setToken] = useState(localStorage.getItem('token'))
     const [loading, setLoading] = useState(true)
+    const abortRef = useRef(null)
 
     useEffect(() => {
+        if (abortRef.current) abortRef.current.abort()
         if (token) {
             localStorage.setItem('token', token)
-            fetchUser()
+            const controller = new AbortController()
+            abortRef.current = controller
+            fetchUser(token, controller.signal)
         } else {
             localStorage.removeItem('token')
             setUser(null)
             setLoading(false)
         }
+        return () => { if (abortRef.current) abortRef.current.abort() }
     }, [token])
 
-    const fetchUser = async () => {
+    const fetchUser = async (currentToken, signal) => {
         try {
-            const res = await fetch('/api/accounts/me', { headers: { Authorization: `Bearer ${token}` } })
+            const res = await fetch('/api/accounts/me', {
+                headers: { Authorization: `Bearer ${currentToken}` },
+                signal,
+            })
             if (res.ok) {
                 setUser(await res.json())
             } else {
                 setToken(null)
             }
-        } catch {
-            setToken(null)
+        } catch (err) {
+            if (err.name !== 'AbortError') setToken(null)
         } finally {
             setLoading(false)
         }
@@ -60,7 +68,11 @@ export const AuthProvider = ({ children }) => {
         setToken(data.access_token)
     }
 
-    const logout = () => setToken(null)
+    const logout = () => {
+        setToken(null)
+        setUser(null)
+        localStorage.removeItem('token')
+    }
 
     return (
         <AuthContext.Provider value={{ user, token, loading, login, requestLoginOtp, logout }}>

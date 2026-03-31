@@ -8,13 +8,13 @@ from app.core.config import settings
 
 def get_cipher() -> Fernet:
     """Generate a Fernet cipher from the application SECRET_KEY."""
-    # We must ensure the key is exactly 32 url-safe base64-encoded bytes.
-    # We derive it by hashing the SECRET_KEY to 32 bytes and encoding it.
     secret = settings.SECRET_KEY.encode()
     if not secret:
-        # Fallback for dev if SECRET_KEY is empty
-        secret = b"default_insecure_secret_key_for_dev_only"
-        
+        raise RuntimeError(
+            "SECRET_KEY is empty. Cannot perform encryption. "
+            "Set a strong SECRET_KEY in your .env file."
+        )
+    # Derive a 32-byte key via SHA-256 and base64-encode for Fernet
     derived_key = hashlib.sha256(secret).digest()
     fernet_key = base64.urlsafe_b64encode(derived_key)
     return Fernet(fernet_key)

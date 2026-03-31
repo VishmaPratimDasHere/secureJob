@@ -8,7 +8,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/context/AuthContext'
 
 export default function Register() {
-    const [formData, setFormData] = useState({ username: '', email: '', phone: '', full_name: '' })
+    const [formData, setFormData] = useState({ username: '', email: '', phone: '', full_name: '', role: 'job_seeker' })
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
     const { user } = useAuth()
@@ -83,6 +83,19 @@ export default function Register() {
                         <div className="space-y-2">
                             <Label htmlFor="phone">Phone Number (Optional)</Label>
                             <Input id="phone" name="phone" type="tel" placeholder="+1234567890" onChange={handleChange} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="role">I am a</Label>
+                            <select
+                                id="role"
+                                name="role"
+                                value={formData.role}
+                                onChange={handleChange}
+                                className="flex h-10 w-full rounded-base border-2 border-border bg-secondary-background px-3 py-2 text-sm font-base text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                            >
+                                <option value="job_seeker">Job Seeker</option>
+                                <option value="recruiter">Recruiter / Employer</option>
+                            </select>
                         </div>
                         <Button type="submit" variant="neutral" className="w-full mt-2" disabled={loading}>
                             {loading ? 'Creating...' : 'Create Account'}

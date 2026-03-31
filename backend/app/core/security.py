@@ -1,6 +1,7 @@
 """Security utilities - password hashing, JWT tokens, and OTP."""
 
 import hashlib
+import hmac
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -24,13 +25,21 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
+JWT_ISSUER = "securejob"
+JWT_AUDIENCE = "securejob-api"
+
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token."""
+    """Create a JWT access token with iss/aud/iat claims."""
+    now = datetime.now(timezone.utc)
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
-    to_encode.update({"exp": expire})
+    expire = now + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({
+        "exp": expire,
+        "iat": now,
+        "iss": JWT_ISSUER,
+        "aud": JWT_AUDIENCE,
+    })
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -47,5 +56,8 @@ def hash_otp(otp: str) -> str:
 
 
 def verify_otp(plain_otp: str, hashed_otp: str) -> bool:
-    """Verify a plaintext OTP against its stored hash."""
-    return hashlib.sha256(plain_otp.encode()).hexdigest() == hashed_otp
+    """Verify a plaintext OTP against its stored hash (timing-safe)."""
+    return hmac.compare_digest(
+        hashlib.sha256(plain_otp.encode()).hexdigest(),
+        hashed_otp,
+    )

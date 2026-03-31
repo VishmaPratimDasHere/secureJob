@@ -11,6 +11,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     full_name: str = ""
     phone: Optional[str] = None
+    role: Literal["job_seeker", "recruiter"] = "job_seeker"
 
     @validator('username')
     def validate_username(cls, v):

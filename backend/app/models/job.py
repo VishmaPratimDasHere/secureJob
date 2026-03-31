@@ -1,6 +1,7 @@
 """Job-related models."""
 
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Enum as SAEnum
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
 
@@ -26,6 +27,9 @@ class Company(Base):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    owner = relationship("User", foreign_keys=[owner_id])
+    job_postings = relationship("JobPosting", back_populates="company")
+
 
 class JobPosting(Base):
     __tablename__ = "job_postings"
@@ -43,6 +47,10 @@ class JobPosting(Base):
     deadline = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    company = relationship("Company", back_populates="job_postings")
+    poster = relationship("User", foreign_keys=[posted_by])
+    applications = relationship("Application", back_populates="job")
+
 
 class Application(Base):
     __tablename__ = "applications"
@@ -53,5 +61,9 @@ class Application(Base):
     cover_note = Column(Text, default="")
     resume_path = Column(String(500), default="")
     status = Column(SAEnum(ApplicationStatus), default=ApplicationStatus.APPLIED)
+    reviewer_note = Column(Text, default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    job = relationship("JobPosting", back_populates="applications")
+    applicant = relationship("User", foreign_keys=[applicant_id])

@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 import time
 import logging
 from datetime import datetime, timedelta, timezone
@@ -12,7 +13,8 @@ from app.core.config import settings
 from app.core.security import create_access_token, generate_otp, hash_otp, verify_otp
 from app.core.dependencies import get_current_user, get_current_active_user
 from app.core.email_service import send_otp_email
-from app.models.user import User
+from app.core.audit import log_event
+from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserResponse, Token, OTPRequest, OTPVerify, LoginOTPRequest, LoginOTPVerify
 from app.schemas.profile import ProfileUpdate
 
@@ -108,11 +110,13 @@ def register(user_data: UserCreate, request: Request, db: Session = Depends(get_
     if db.query(User).filter(User.email == user_data.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    from app.models.user import UserRole
     user = User(
         username=user_data.username,
         email=user_data.email,
         full_name=user_data.full_name,
         phone=user_data.phone,
+        role=UserRole(user_data.role),
     )
     db.add(user)
     
@@ -123,6 +127,8 @@ def register(user_data: UserCreate, request: Request, db: Session = Depends(get_
     method = "email"
     try:
         actual_method = _send_otp(user, method, db)
+        log_event(db, action="user.register", request=request, user_id=user.id,
+                  target_type="user", target_id=user.id, detail=user.username)
         db.commit() # Commit only if OTP succeeded
         db.refresh(user)
         logger.info("New user registered: %s (ID: %d)", user.username, user.id)
@@ -132,6 +138,9 @@ def register(user_data: UserCreate, request: Request, db: Session = Depends(get_
             "method": actual_method,
             "identifier": user.phone if actual_method == "phone" else user.email
         }
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Username or email already taken")
     except Exception as e:
         db.rollback() # Rollback user creation
         logger.error("Failed to send OTP during registration: %s", str(e))
@@ -198,9 +207,11 @@ def verify_login_otp(req: LoginOTPVerify, db: Session = Depends(get_db)):
         
     user.login_attempts = 0
     user.login_locked_until = None
-    db.commit()
 
     token = create_access_token(data={"sub": user.username, "role": user.role.value})
+    log_event(db, action="user.login", user_id=user.id,
+              target_type="user", target_id=user.id, detail=user.username)
+    db.commit()
     logger.info("User logged in via OTP: %s", user.username)
     return {"access_token": token}
 

@@ -67,8 +67,16 @@ def _r2_exists(key: str) -> bool:
 
 # ─── Validation ──────────────────────────────────────────────────────────────
 
+# Magic bytes for real file type detection (prevents extension spoofing)
+FILE_MAGIC_BYTES = {
+    ".pdf": b"%PDF",
+    ".docx": b"PK\x03\x04",  # ZIP-based format (OOXML)
+    ".doc": b"\xd0\xcf\x11\xe0",  # OLE compound document
+}
+
+
 def _validate_file(file: UploadFile, content: bytes):
-    """C-3: Validate file type and size."""
+    """Validate file type (extension + magic bytes + MIME) and size."""
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=413,
@@ -81,6 +89,14 @@ def _validate_file(file: UploadFile, content: bytes):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid file type '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
+
+    # Verify file content matches expected magic bytes
+    expected_magic = FILE_MAGIC_BYTES.get(ext)
+    if expected_magic and not content[:len(expected_magic)].startswith(expected_magic):
+        raise HTTPException(
+            status_code=400,
+            detail=f"File content does not match extension '{ext}'. Upload a real {ext.upper()} file."
         )
 
     if file.content_type and file.content_type not in ALLOWED_MIME_TYPES:

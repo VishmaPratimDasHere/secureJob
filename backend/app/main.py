@@ -4,12 +4,33 @@ Secure Job Search & Professional Networking Platform
 CSE 345/545 - Foundations of Computer Security
 """
 
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.core.config import settings
 from app.core.database import engine, Base
+from app.core.security_middleware import SecurityHeadersMiddleware, RateLimitMiddleware
 from app.routers import accounts, jobs, messaging, resumes, admin
+
+logger = logging.getLogger("securejob")
+
+# ─── Startup security checks ─────────────────────────────────────────────────
+if not settings.SECRET_KEY or len(settings.SECRET_KEY) < 32:
+    if not settings.DEBUG:
+        raise RuntimeError(
+            "FATAL: SECRET_KEY must be at least 32 characters in production. "
+            "Set a strong SECRET_KEY in your .env file."
+        )
+    else:
+        logger.warning(
+            "WARNING: SECRET_KEY is weak or empty. This is only acceptable in DEBUG mode. "
+            "Set a strong SECRET_KEY (32+ chars) before deploying."
+        )
+
+# Import all models so Base.metadata sees them
+import app.models  # noqa: F401
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -23,13 +44,28 @@ app = FastAPI(
     openapi_url="/openapi.json" if settings.DOCS_ENABLED else None,
 )
 
-# CORS middleware
+# ─── Middleware stack (order matters — last added = first executed) ───────────
+
+# 1. Security headers on every response
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 2. CORS — restrict methods & headers to only what's needed
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
+    max_age=600,  # preflight cache 10 min
+)
+
+# 3. Global rate limiting & request size enforcement
+app.add_middleware(RateLimitMiddleware)
+
+# 4. Trusted host — prevent host-header attacks (allow localhost for dev)
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["localhost", "127.0.0.1", "*.localhost"],
 )
 
 app.include_router(accounts.router, prefix="/api")
@@ -43,17 +79,10 @@ app.include_router(admin.router, prefix="/api")
 def root():
     return {
         "platform": settings.APP_NAME,
-        "version": settings.APP_VERSION,
         "status": "running",
-        "docs": "/docs",
-        "endpoints": {
-            "accounts": "/api/accounts/health",
-            "jobs": "/api/jobs/health",
-            "messaging": "/api/messages/health",
-        },
     }
 
 
 @app.get("/health")
 def health():
-    return {"status": "healthy", "platform": settings.APP_NAME}
+    return {"status": "healthy"}
