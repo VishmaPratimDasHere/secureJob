@@ -12,7 +12,16 @@ export default function Jobs() {
     const [search, setSearch] = useState('')
     const [locationFilter, setLocationFilter] = useState('')
     const [remoteOnly, setRemoteOnly] = useState(false)
+    const [jobType, setJobType] = useState('')
     const [loading, setLoading] = useState(true)
+
+    const JOB_TYPES = [
+        { value: '', label: 'All Types' },
+        { value: 'full_time', label: 'Full Time' },
+        { value: 'part_time', label: 'Part Time' },
+        { value: 'internship', label: 'Internship' },
+        { value: 'contract', label: 'Contract' },
+    ]
 
     const fetchJobs = async () => {
         setLoading(true)
@@ -20,6 +29,7 @@ export default function Jobs() {
         if (search) params.set('q', search)
         if (locationFilter) params.set('location', locationFilter)
         if (remoteOnly) params.set('remote', 'true')
+        if (jobType) params.set('job_type', jobType)
         try {
             const res = await fetch(`/api/jobs/postings?${params}`)
             if (res.ok) setJobs(await res.json())
@@ -80,6 +90,15 @@ export default function Jobs() {
                             onChange={e => setLocationFilter(e.target.value)}
                             className="md:w-48"
                         />
+                        <select
+                            value={jobType}
+                            onChange={e => setJobType(e.target.value)}
+                            className="md:w-44 h-10 border-2 border-border rounded-base bg-background px-3 text-sm font-base"
+                        >
+                            {JOB_TYPES.map(jt => (
+                                <option key={jt.value} value={jt.value}>{jt.label}</option>
+                            ))}
+                        </select>
                         <label className="flex items-center gap-2 text-sm font-base whitespace-nowrap">
                             <input type="checkbox" checked={remoteOnly} onChange={e => setRemoteOnly(e.target.checked)} />
                             Remote only
@@ -114,6 +133,7 @@ export default function Jobs() {
                                         </p>
                                         <div className="flex flex-wrap gap-2 mt-2">
                                             {job.is_remote && <Badge>Remote</Badge>}
+                                            {job.job_type && <Badge variant="neutral">{job.job_type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</Badge>}
                                             {job.salary_range && <Badge variant="neutral">{job.salary_range}</Badge>}
                                             {job.required_skills && job.required_skills.split(',').slice(0, 3).map(s =>
                                                 <Badge key={s} variant="neutral">{s.trim()}</Badge>

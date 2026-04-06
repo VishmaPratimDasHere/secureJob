@@ -11,14 +11,12 @@ from app.core.config import settings
 logger = logging.getLogger("securejob.email")
 
 
-def send_otp_email(to_email: str, otp: str) -> bool:
+def send_otp_email(to_email: str, otp: str, subject: str = "SecureAJob — Your Verification Code") -> bool:
     """Send an OTP code via SMTP email."""
     if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
         logger.warning("SMTP not configured — printing OTP to console instead.")
         print(f"=== EMAIL OTP for {to_email}: {otp} ===")
         return True
-
-    subject = "SecureAJob — Your Verification Code"
     html = f"""
     <div style="font-family: sans-serif; max-width: 400px; margin: auto; border: 2px solid #000; border-radius: 5px; padding: 24px;">
         <h2 style="margin-top: 0;">SecureAJob</h2>

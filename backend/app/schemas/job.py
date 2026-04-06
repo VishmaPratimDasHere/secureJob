@@ -76,6 +76,7 @@ class JobPostingCreate(BaseModel):
     required_skills: str = ""
     location: str = ""
     is_remote: bool = False
+    job_type: str = "full_time"
     salary_range: str = ""
     company_id: int
     deadline: Optional[datetime] = None
@@ -103,6 +104,7 @@ class JobPostingUpdate(BaseModel):
     required_skills: Optional[str] = None
     location: Optional[str] = None
     is_remote: Optional[bool] = None
+    job_type: Optional[str] = None
     salary_range: Optional[str] = None
     is_active: Optional[bool] = None
     deadline: Optional[datetime] = None
@@ -115,6 +117,7 @@ class JobPostingResponse(BaseModel):
     required_skills: str
     location: str
     is_remote: bool
+    job_type: str = "full_time"
     salary_range: str
     company_id: int
     posted_by: int

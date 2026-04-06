@@ -1,4 +1,4 @@
-"""Encrypted messaging models — one-to-one and group conversations."""
+"""Encrypted messaging models — one-to-one, group, and announcements."""
 
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Table
 from sqlalchemy.orm import relationship
@@ -20,7 +20,7 @@ class Conversation(Base):
     __tablename__ = "conversations"
 
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(200), default="")          # blank for 1-on-1
+    title = Column(String(200), default="")
     is_group = Column(Boolean, default=False)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -36,8 +36,24 @@ class Message(Base):
     id = Column(Integer, primary_key=True, index=True)
     conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    encrypted_body = Column(Text, nullable=False)     # Fernet-encrypted content
+    encrypted_body = Column(Text, nullable=False)      # Fernet-encrypted (server-side)
+    # PKI: sender signs SHA256(body+timestamp) with their RSA private key
+    signature = Column(Text, nullable=True)            # base64-encoded RSA signature
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     conversation = relationship("Conversation", back_populates="messages")
+    sender = relationship("User", foreign_keys=[sender_id])
+
+
+class Announcement(Base):
+    """Platform-wide or targeted announcements (server-side encrypted)."""
+    __tablename__ = "announcements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String(200), nullable=False)
+    encrypted_body = Column(Text, nullable=False)      # Fernet-encrypted
+    target_role = Column(String(20), default="all")    # "all", "job_seeker", "recruiter"
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
     sender = relationship("User", foreign_keys=[sender_id])

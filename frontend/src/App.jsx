@@ -4,6 +4,7 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import Login from '@/pages/Login'
 import Register from '@/pages/Register'
 import Profile from '@/pages/Profile'
+import PublicProfile from '@/pages/PublicProfile'
 import AdminDashboard from '@/pages/AdminDashboard'
 import Landing from '@/pages/Landing'
 import OTPVerification from '@/pages/OTPVerification'
@@ -14,6 +15,8 @@ import CompanyDetail from '@/pages/CompanyDetail'
 import MyApplications from '@/pages/MyApplications'
 import RecruiterDashboard from '@/pages/RecruiterDashboard'
 import Messages from '@/pages/Messages'
+import Connections from '@/pages/Connections'
+import ForgotPassword from '@/pages/ForgotPassword'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
@@ -51,6 +54,9 @@ function Navbar() {
                   <Button variant="neutral" size="sm">Dashboard</Button>
                 </Link>
               )}
+              <Link to="/connections">
+                <Button variant="neutral" size="sm">Network</Button>
+              </Link>
               <Link to="/messages">
                 <Button variant="neutral" size="sm">Messages</Button>
               </Link>
@@ -91,13 +97,16 @@ function App() {
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/jobs/:id" element={<JobDetail />} />
               <Route path="/companies" element={<Companies />} />
               <Route path="/companies/:id" element={<CompanyDetail />} />
+              <Route path="/profile/:id" element={<PublicProfile />} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/verify" element={<ProtectedRoute><OTPVerification /></ProtectedRoute>} />
               <Route path="/applications" element={<ProtectedRoute><MyApplications /></ProtectedRoute>} />
+              <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
               <Route path="/recruiter" element={<ProtectedRoute requiredRole="recruiter"><RecruiterDashboard /></ProtectedRoute>} />
               <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />

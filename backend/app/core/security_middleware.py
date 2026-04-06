@@ -1,7 +1,9 @@
-"""Security middleware — rate limiting, request size limits, security headers, IP-based DDoS protection."""
+"""Security middleware — rate limiting, request size, security headers, CSRF, input sanitization."""
 
 import time
+import secrets
 import logging
+import re
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Optional
@@ -144,3 +146,90 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
 
         return await call_next(request)
+
+
+# ─── CSRF Token store (in-memory; use Redis in prod) ─────────────────────────
+_csrf_tokens: dict[str, float] = {}   # token -> expiry timestamp
+CSRF_TOKEN_TTL = 3600                  # 1 hour
+
+# State-changing methods that require a CSRF token
+_CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+# Paths exempt from CSRF (JWT-only APIs, login endpoints)
+_CSRF_EXEMPT_PREFIXES = (
+    "/api/accounts/login",
+    "/api/accounts/register",
+    "/api/accounts/password-reset",
+    "/docs",
+    "/openapi.json",
+    "/health",
+)
+
+
+def issue_csrf_token() -> str:
+    """Generate and store a CSRF token."""
+    token = secrets.token_urlsafe(32)
+    _csrf_tokens[token] = time.time() + CSRF_TOKEN_TTL
+    return token
+
+
+def _cleanup_csrf_tokens():
+    now = time.time()
+    expired = [t for t, exp in _csrf_tokens.items() if now > exp]
+    for t in expired:
+        del _csrf_tokens[t]
+
+
+class CSRFMiddleware(BaseHTTPMiddleware):
+    """
+    Double-submit cookie CSRF protection.
+    - GET /api/csrf  →  issues a CSRF token as a cookie + JSON body
+    - All state-changing requests must include X-CSRF-Token header
+      matching a valid issued token.
+    - Pure JWT (Authorization: Bearer) requests are exempt because
+      they are not vulnerable to CSRF (browser never auto-attaches Bearer).
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        method = request.method
+
+        # Exempt safe methods and special paths
+        if method in _CSRF_SAFE_METHODS:
+            return await call_next(request)
+        if any(path.startswith(p) for p in _CSRF_EXEMPT_PREFIXES):
+            return await call_next(request)
+
+        # If request carries a Bearer token it's a programmatic API call — exempt
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            return await call_next(request)
+
+        # Otherwise validate CSRF token
+        csrf_header = request.headers.get("X-CSRF-Token", "")
+        _cleanup_csrf_tokens()
+        now = time.time()
+        if not csrf_header or csrf_header not in _csrf_tokens or now > _csrf_tokens.get(csrf_header, 0):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "CSRF token missing or invalid. Fetch a token from GET /api/csrf."},
+            )
+
+        return await call_next(request)
+
+
+# ─── HTML / XSS sanitization helper ─────────────────────────────────────────
+
+# Strip tags and dangerous attributes from free-text input
+_TAG_RE = re.compile(r'<[^>]+>')
+_JS_RE = re.compile(r'javascript\s*:', re.IGNORECASE)
+_EVENT_RE = re.compile(r'\bon\w+\s*=', re.IGNORECASE)
+
+
+def sanitize_text(value: str) -> str:
+    """Strip HTML tags, javascript: URIs, and inline event handlers from text."""
+    if not isinstance(value, str):
+        return value
+    value = _TAG_RE.sub('', value)
+    value = _JS_RE.sub('', value)
+    value = _EVENT_RE.sub('', value)
+    return value

@@ -136,11 +136,14 @@ def list_jobs(
     q: str = Query("", description="Search in title, skills, location", max_length=200),
     location: str = Query("", description="Filter by location", max_length=100),
     remote: Optional[bool] = Query(None, description="Filter remote jobs"),
+    job_type: Optional[str] = Query(None, description="full_time | part_time | internship | contract"),
+    company_id: Optional[int] = Query(None, description="Filter by company"),
     skip: int = Query(0, ge=0, le=10000),
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     """List/search active job postings (public)."""
+    from app.models.job import JobType
     query = db.query(JobPosting).join(Company).filter(JobPosting.is_active == True)
 
     if q:
@@ -157,6 +160,13 @@ def list_jobs(
         query = query.filter(JobPosting.location.ilike(f"%{location}%"))
     if remote is not None:
         query = query.filter(JobPosting.is_remote == remote)
+    if job_type:
+        try:
+            query = query.filter(JobPosting.job_type == JobType(job_type))
+        except ValueError:
+            pass  # ignore invalid job_type
+    if company_id:
+        query = query.filter(JobPosting.company_id == company_id)
 
     jobs = query.offset(skip).limit(limit).all()
     return [_job_to_response(j) for j in jobs]

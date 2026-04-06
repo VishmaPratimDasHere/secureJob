@@ -15,6 +15,8 @@ class AuditLogResponse(BaseModel):
     ip_address: str
     created_at: datetime
     username: str = ""
+    prev_hash: str = ""
+    entry_hash: str = ""
 
     class Config:
         from_attributes = True

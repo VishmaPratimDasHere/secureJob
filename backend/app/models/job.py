@@ -16,6 +16,13 @@ class ApplicationStatus(str, enum.Enum):
     OFFER = "offer"
 
 
+class JobType(str, enum.Enum):
+    FULL_TIME = "full_time"
+    PART_TIME = "part_time"
+    INTERNSHIP = "internship"
+    CONTRACT = "contract"
+
+
 class Company(Base):
     __tablename__ = "companies"
 
@@ -40,6 +47,7 @@ class JobPosting(Base):
     required_skills = Column(String(500), default="")
     location = Column(String(100), default="")
     is_remote = Column(Boolean, default=False)
+    job_type = Column(SAEnum(JobType), default=JobType.FULL_TIME, nullable=False)
     salary_range = Column(String(100), default="")
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
     posted_by = Column(Integer, ForeignKey("users.id"), nullable=False)

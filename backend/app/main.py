@@ -11,7 +11,10 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.core.security_middleware import SecurityHeadersMiddleware, RateLimitMiddleware
+from app.core.security_middleware import (
+    SecurityHeadersMiddleware, RateLimitMiddleware,
+    CSRFMiddleware, issue_csrf_token,
+)
 from app.routers import accounts, jobs, messaging, resumes, admin
 
 logger = logging.getLogger("securejob")
@@ -20,14 +23,10 @@ logger = logging.getLogger("securejob")
 if not settings.SECRET_KEY or len(settings.SECRET_KEY) < 32:
     if not settings.DEBUG:
         raise RuntimeError(
-            "FATAL: SECRET_KEY must be at least 32 characters in production. "
-            "Set a strong SECRET_KEY in your .env file."
+            "FATAL: SECRET_KEY must be at least 32 characters in production."
         )
     else:
-        logger.warning(
-            "WARNING: SECRET_KEY is weak or empty. This is only acceptable in DEBUG mode. "
-            "Set a strong SECRET_KEY (32+ chars) before deploying."
-        )
+        logger.warning("WARNING: SECRET_KEY is weak. Set a strong SECRET_KEY before deploying.")
 
 # Import all models so Base.metadata sees them
 import app.models  # noqa: F401
@@ -38,34 +37,33 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="SecureAJob - Secure Job Search & Professional Networking Platform - CSE 345/545 FCS Project",
+    description="SecureAJob - Secure Job Search & Professional Networking Platform",
     docs_url="/docs" if settings.DOCS_ENABLED else None,
     redoc_url="/redoc" if settings.DOCS_ENABLED else None,
     openapi_url="/openapi.json" if settings.DOCS_ENABLED else None,
 )
 
-# ─── Middleware stack (order matters — last added = first executed) ───────────
+# ─── Middleware stack (last added = first executed) ───────────────────────────
 
-# 1. Security headers on every response
 app.add_middleware(SecurityHeadersMiddleware)
 
-# 2. CORS — restrict methods & headers to only what's needed
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
-    max_age=600,  # preflight cache 10 min
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-CSRF-Token"],
+    expose_headers=["X-Integrity-Verified"],
+    max_age=600,
 )
 
-# 3. Global rate limiting & request size enforcement
 app.add_middleware(RateLimitMiddleware)
 
-# 4. Trusted host — prevent host-header attacks (allow localhost for dev)
+app.add_middleware(CSRFMiddleware)
+
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["localhost", "127.0.0.1", "*.localhost"],
+    allowed_hosts=["localhost", "127.0.0.1", "*.localhost", "192.168.3.43"],
 )
 
 app.include_router(accounts.router, prefix="/api")
@@ -77,12 +75,16 @@ app.include_router(admin.router, prefix="/api")
 
 @app.get("/")
 def root():
-    return {
-        "platform": settings.APP_NAME,
-        "status": "running",
-    }
+    return {"platform": settings.APP_NAME, "status": "running"}
 
 
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+
+
+@app.get("/api/csrf")
+def get_csrf_token():
+    """Issue a CSRF token for browser-based form submissions."""
+    token = issue_csrf_token()
+    return {"csrf_token": token}

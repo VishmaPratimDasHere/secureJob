@@ -54,11 +54,13 @@ export const AuthProvider = ({ children }) => {
         return await res.json()
     }
 
-    const login = async (identifier, code) => {
+    const login = async (identifier, code, totp_code) => {
+        const body = { identifier, code }
+        if (totp_code) body.totp_code = totp_code
         const res = await fetch('/api/accounts/login/verify-otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ identifier, code })
+            body: JSON.stringify(body)
         })
         if (!res.ok) {
             const data = await res.json()
