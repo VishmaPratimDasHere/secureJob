@@ -47,15 +47,33 @@ export default function Register() {
                 delete payload.phone
             }
 
-            const response = await fetch('/api/accounts/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            })
-            const data = await response.json()
-            if (!response.ok) {
-                throw new Error(data.detail?.[0]?.msg || data.detail || 'Registration failed')
+            let response
+            try {
+                response = await fetch('/api/accounts/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+            } catch (networkErr) {
+                throw new Error('Could not reach registration API. If frontend is on Vercel, deploy backend and connect /api routes.')
             }
+
+            let data = null
+            const raw = await response.text()
+            try {
+                data = raw ? JSON.parse(raw) : null
+            } catch {
+                data = { detail: raw || 'Non-JSON response from server' }
+            }
+
+            if (!response.ok) {
+                const detail = data?.detail
+                const msg =
+                    Array.isArray(detail) ? detail.map(item => item?.msg || item).join(', ')
+                        : (typeof detail === 'string' ? detail : null)
+                throw new Error(msg || `Registration failed (HTTP ${response.status})`)
+            }
+
             // Navigate to login page, step 2, with identifier pre-filled
             navigate('/login', {
                 state: {
