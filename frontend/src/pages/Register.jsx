@@ -29,10 +29,28 @@ export default function Register() {
         setLoading(true)
         setError('')
         try {
+            const payload = {
+                ...formData,
+                username: formData.username.trim(),
+                email: formData.email.trim(),
+                full_name: formData.full_name.trim(),
+                phone: formData.phone.trim(),
+            }
+
+            if (!/^[a-zA-Z0-9_]{3,30}$/.test(payload.username)) {
+                throw new Error('Username must be 3-30 characters and use only letters, numbers, and underscores.')
+            }
+            if (payload.phone && !/^\+?[1-9]\d{1,14}$/.test(payload.phone)) {
+                throw new Error('Phone must be in international format, e.g. +1234567890 (or leave it blank).')
+            }
+            if (!payload.phone) {
+                delete payload.phone
+            }
+
             const response = await fetch('/api/accounts/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(payload)
             })
             const data = await response.json()
             if (!response.ok) {
