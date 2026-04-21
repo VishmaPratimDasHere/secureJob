@@ -1,0 +1,34 @@
+\frametitle{Additional Allegations}
+\renewcommand{\arraystretch}{1.2}
+\scriptsize
+\begin{tabular}{|p{2.8cm}|p{4cm}|p{1.5cm}|p{5.5cm}|}
+\hline
+\textbf{Reporter} & \textbf{Allegation} & \textbf{Status} & \textbf{Rebuttal} \\
+\hline
+Ayush Kumar & Connection request IDs & Valid & Accept/decline flow needs integration fixes \\
+\hline
+Priyanshu Gupta & Password reset UX & Partially Valid & Logic works, UI response broken \\
+\hline
+Mohit Bhariya & Recruiter features & Invalid & Requirements substantially satisfied \\
+\hline
+Ashil Krishna PS & Company creation & Invalid & Works in testing, insufficient evidence \\
+\hline
+Ashil Krishna PS & Supabase dependency & Invalid & No external auth dependency \\
+\hline
+Ashil Krishna PS & Clickjacking & Invalid & Insufficient PoC provided \\
+\hline
+Nitin Rayal & Company creation & Invalid & Works, not reliably reproduced \\
+\hline
+Nitin Rayal & JWT localStorage & Invalid & Insufficient exploit demonstration \\
+\hline
+\hline
+\end{tabular}
+
+\vspace{0.3cm}
+\begin{block}{Summary}
+\begin{itemize}
+    \item \textbf{Valid Issues}: 6 (connection UI, salary validation, E2EE gap, JWT storage, DoS, password reset UX)
+    \item \textbf{Invalid Issues}: 13 (misunderstood features, insufficient evidence, by-design behavior)
+    \item \textbf{Partially Valid}: 3 (UI issues, input sanitization)
+\end{itemize}
+\end{block}
