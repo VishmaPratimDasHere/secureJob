@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+
+    --main: 205 100% 88%;
+    --main-foreground: 0 0% 0%;
+
+    --secondary-background: 0 0% 96%;
+
+    --overlay: 0 0% 0%;
+    --overlay-foreground: 0 0% 100%;
+
+    --border: 0 0% 0%;
+    --ring: 0 0% 0%;
+
+    --chart-1: 0 80% 63%;
+    --chart-2: 200 80% 63%;
+    --chart-3: 120 80% 40%;
+    --chart-4: 50 80% 56%;
+    --chart-5: 280 80% 63%;
+
+    --rounded: 5px;
+    --shadow-opacity: 100%;
+    --shadow-color: hsl(0, 0%, 0%);
+
+    --box-shadow-x: 4px;
+    --box-shadow-y: 4px;
+    --reverse-box-shadow-x: -4px;
+    --reverse-box-shadow-y: -4px;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-base;
+    font-family: "DM Sans", sans-serif;
+  }
+}
