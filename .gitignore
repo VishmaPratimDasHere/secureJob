@@ -39,3 +39,6 @@ backend/test_twilio.py
 backend/twilio_output.txt
 backend/del_test_user.py
 backend/test_otp_flow.py
+
+# Presentation files
+!*presentation*.pdf
